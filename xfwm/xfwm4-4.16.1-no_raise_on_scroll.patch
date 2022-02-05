@@ -1,0 +1,30 @@
+From ca4bdd60f432d5608b5cf2a836f3161b55ed4ad1 Mon Sep 17 00:00:00 2001
+From: andregoetz <andregoetz37@gmail.com>
+Date: Sat, 5 Feb 2022 20:06:37 +0100
+Subject: [PATCH] change raise_with_any_button to only use Button1, Button2 and
+ Button3
+
+---
+ src/focus.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/focus.c b/src/focus.c
+index 9c2ac30d1..afb3df103 100644
+--- a/src/focus.c
++++ b/src/focus.c
+@@ -712,7 +712,11 @@ clientGrabMouseButton (Client * c)
+     if (screen_info->params->raise_with_any_button)
+     {
+         grabButton (screen_info->display_info->devices, clientGetXDisplay (c),
+-                    AnyButton, AnyModifier, c->window);
++                    Button1, AnyModifier, c->window);
++        grabButton (screen_info->display_info->devices, clientGetXDisplay (c),
++                    Button2, AnyModifier, c->window);
++        grabButton (screen_info->display_info->devices, clientGetXDisplay (c),
++                    Button3, AnyModifier, c->window);
+     }
+     else
+     {
+-- 
+2.35.1
+

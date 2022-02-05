@@ -1,0 +1,317 @@
+From 7455a295df4ebad77024cb2f2516ff7fe8137dbf Mon Sep 17 00:00:00 2001
+From: David Keogh <davidtkeogh@gmail.com>
+Date: Sun, 21 Feb 2021 13:02:11 -0800
+Subject: [PATCH] Rebase Mike Schliep's move_resize_raise.patch
+
+---
+ src/client.c     | 28 +++++++++++++-----
+ src/client.h     |  3 ++
+ src/cycle.c      |  7 -----
+ src/focus.c      | 20 -------------
+ src/moveresize.c |  7 +++++
+ src/stacking.c   | 75 +++++++++++++++++++++++++++++++-----------------
+ src/stacking.h   |  4 +--
+ 7 files changed, 81 insertions(+), 63 deletions(-)
+
+diff --git a/src/client.c b/src/client.c
+index fc33e91cf..9b599c6b2 100644
+--- a/src/client.c
++++ b/src/client.c
+@@ -981,6 +981,9 @@ clientMoveResizeWindow (Client *c, XWindowChanges * wc, unsigned long mask)
+     }
+     /* And finally, configure the window */
+     clientConfigure (c, wc, mask, flags);
++
++    /* Lower fullscreen clients that overlap with the new position */
++    clientLowerFullscreenClients(c, TRUE);
+ }
+ 
+ void
+@@ -2621,7 +2624,6 @@ void
+ clientActivate (Client *c, guint32 timestamp, gboolean source_is_application)
+ {
+     ScreenInfo *screen_info;
+-    Client *focused;
+     Client *ancestor;
+ 
+     g_return_if_fail (c != NULL);
+@@ -2629,15 +2631,9 @@ clientActivate (Client *c, guint32 timestamp, gboolean source_is_application)
+ 
+     screen_info = c->screen_info;
+     ancestor = clientGetTransientFor(c);
+-    focused = clientGetFocus ();
+ 
+     if ((screen_info->current_ws == c->win_workspace) || (screen_info->params->activate_action != ACTIVATE_ACTION_NONE))
+     {
+-        if ((focused) && (c != focused))
+-        {
+-            /* We might be able to avoid this if we are about to switch workspace */
+-            clientAdjustFullscreenLayer (focused, FALSE);
+-        }
+         if (FLAG_TEST (c->xfwm_flags, XFWM_FLAG_WAS_SHOWN))
+         {
+             /* We are explicitely activating a window that was shown before show-desktop */
+@@ -4258,6 +4254,24 @@ clientGetGtkHideTitlebar (Client * c)
+     return old_value != FLAG_TEST (c->flags, CLIENT_FLAG_HIDE_TITLEBAR);
+ }
+ 
++gboolean
++clientCheckSameMonitor (Client * c1, Client *c2)
++{
++    GdkRectangle rect1, rect2;
++    myScreenFindMonitorAtPoint (c1->screen_info,
++            frameX (c1) + (frameWidth (c1) / 2),
++            frameY (c1) + (frameHeight (c1) / 2), &rect1);
++
++    myScreenFindMonitorAtPoint (c2->screen_info,
++            frameX (c2) + (frameWidth (c2) / 2),
++            frameY (c2) + (frameHeight (c2) / 2), &rect2);
++
++
++    return ((rect1.x == rect2.x) && (rect1.y == rect2.y) 
++            && (rect1.height == rect2.height) && (rect1.width == rect2.width));
++
++}
++
+ #ifdef HAVE_LIBSTARTUP_NOTIFICATION
+ char *
+ clientGetStartupId (Client *c)
+diff --git a/src/client.h b/src/client.h
+index fd6ab669a..8ba167d58 100644
+--- a/src/client.h
++++ b/src/client.h
+@@ -503,6 +503,9 @@ int                      clientGetButtonState                   (Client *,
+ Client                  *clientGetLeader                        (Client *);
+ gboolean                 clientGetGtkFrameExtents               (Client *);
+ gboolean                 clientGetGtkHideTitlebar               (Client *);
++gboolean                 clientCheckSameMonitor                 (Client *,
++                                                                 Client *);
++
+ #ifdef HAVE_LIBSTARTUP_NOTIFICATION
+ char                    *clientGetStartupId                     (Client *);
+ #endif /* HAVE_LIBSTARTUP_NOTIFICATION */
+diff --git a/src/cycle.c b/src/cycle.c
+index 2a30647d1..f3f747f5c 100644
+--- a/src/cycle.c
++++ b/src/cycle.c
+@@ -191,7 +191,6 @@ clientCycleActivate (Client *c)
+ {
+     ScreenInfo *screen_info;
+     DisplayInfo *display_info;
+-    Client *focused;
+     guint workspace;
+ 
+     if (c == NULL)
+@@ -202,13 +201,7 @@ clientCycleActivate (Client *c)
+     screen_info = c->screen_info;
+     display_info = screen_info->display_info;
+     workspace = c->win_workspace;
+-    focused = clientGetFocus ();
+ 
+-    if ((focused) && (c != focused))
+-    {
+-        /* We might be able to avoid this if we are about to switch workspace */
+-        clientAdjustFullscreenLayer (focused, FALSE);
+-    }
+     if (FLAG_TEST (c->xfwm_flags, XFWM_FLAG_WAS_SHOWN))
+     {
+         /* We are explicitely activating a window that was shown before show-desktop */
+diff --git a/src/focus.c b/src/focus.c
+index 9c2ac30d1..2a5f7a1ea 100644
+--- a/src/focus.c
++++ b/src/focus.c
+@@ -208,10 +208,6 @@ clientFocusNew(Client * c)
+     }
+     if (give_focus)
+     {
+-        if (client_focus)
+-        {
+-            clientAdjustFullscreenLayer (client_focus, FALSE);
+-        }
+         clientRaise (c, None);
+         clientShow (c, TRUE);
+         clientSetFocus (screen_info, c,
+@@ -475,7 +471,6 @@ void
+ clientUpdateFocus (ScreenInfo *screen_info, Client * c, unsigned short flags)
+ {
+     Client *c2;
+-    gboolean restacked;
+ 
+     TRACE ("entering");
+ 
+@@ -498,7 +493,6 @@ clientUpdateFocus (ScreenInfo *screen_info, Client * c, unsigned short flags)
+     if (c2)
+     {
+         clientSetNetState (c2);
+-        clientAdjustFullscreenLayer (c2, FALSE);
+         frameQueueDraw (c2, FALSE);
+         clientUpdateOpacity (c2);
+     }
+@@ -516,20 +510,6 @@ clientUpdateFocus (ScreenInfo *screen_info, Client * c, unsigned short flags)
+             FLAG_UNSET (c->flags, CLIENT_FLAG_DEMANDS_ATTENTION);
+         }
+         clientSetNetState (c);
+-        restacked = clientAdjustFullscreenLayer (c, TRUE);
+-
+-        if (!restacked && screen_info->params->raise_on_focus)
+-        {
+-            if (screen_info->params->click_to_focus)
+-            {
+-                clientRaise (c, None);
+-                clientSetLastRaise (c);
+-            }
+-            else
+-            {
+-                clientResetDelayedRaise (screen_info);
+-            }
+-        }
+         frameQueueDraw (c, FALSE);
+         clientUpdateOpacity (c);
+     }
+diff --git a/src/moveresize.c b/src/moveresize.c
+index f1e662680..789d60c25 100644
+--- a/src/moveresize.c
++++ b/src/moveresize.c
+@@ -47,6 +47,7 @@
+ #include "poswin.h"
+ #include "screen.h"
+ #include "settings.h"
++#include "stacking.h"
+ #include "transients.h"
+ #include "event_filter.h"
+ #include "wireframe.h"
+@@ -1134,6 +1135,9 @@ clientMoveEventFilter (XfwmEvent *event, gpointer data)
+         gtk_main_quit ();
+     }
+ 
++    /* Lower fullscreen clients that overlap with the new position */
++    clientLowerFullscreenClients(c, TRUE);
++   
+     return status;
+ }
+ 
+@@ -1677,6 +1681,9 @@ clientResizeEventFilter (XfwmEvent *event, gpointer data)
+         gtk_main_quit ();
+     }
+ 
++    /* Lower fullscreen clients that overlap with the new position */
++    clientLowerFullscreenClients(c, TRUE);
++
+     return status;
+ }
+ 
+diff --git a/src/stacking.c b/src/stacking.c
+index 0a97e1599..e0ce00d82 100644
+--- a/src/stacking.c
++++ b/src/stacking.c
+@@ -554,33 +554,6 @@ clientLower (Client * c, Window wsibling)
+     }
+ }
+ 
+-gboolean
+-clientAdjustFullscreenLayer (Client *c, gboolean set)
+-{
+-    g_return_val_if_fail (c, FALSE);
+-
+-    TRACE ("%s fullscreen layer for  \"%s\" (0x%lx)", set ? "setting" : "unsetting", c->name, c->window);
+-
+-    if (set)
+-    {
+-        if (FLAG_TEST(c->flags, CLIENT_FLAG_FULLSCREEN))
+-        {
+-            clientSetLayer (c, WIN_LAYER_FULLSCREEN);
+-            return TRUE;
+-        }
+-    }
+-    else if (c->win_layer == WIN_LAYER_FULLSCREEN)
+-    {
+-        if (FLAG_TEST(c->flags, CLIENT_FLAG_FULLSCREEN))
+-        {
+-            TRACE ("Moving \"%s\" (0x%lx) to initial layer %d", c->name, c->window, c->pre_fullscreen_layer);
+-            clientSetLayer (c, c->pre_fullscreen_layer);
+-            return TRUE;
+-        }
+-    }
+-    return FALSE;
+-}
+-
+ void
+ clientAddToList (Client * c)
+ {
+@@ -734,3 +707,51 @@ clientResetDelayedRaise (ScreenInfo *screen_info)
+                                         NULL, NULL);
+ }
+ 
++void
++clientLowerFullscreenClients (Client *c, gboolean applyStack)
++{
++    ScreenInfo *screen_info;
++    DisplayInfo *display_info;
++    Client *c2;
++    GList *sibling;
++    GList *list;
++    gboolean changed;
++
++    /* Never lower for a dock */
++    if(c->win_layer == WIN_LAYER_DOCK)
++    {
++        return;
++    }
++
++
++    screen_info = c->screen_info;
++    display_info = screen_info->display_info;
++    sibling = NULL;
++    changed = FALSE;
++
++
++    /*Lower any fullscreen windows on the same monitor*/
++    for (list = screen_info->windows_stack; list; list = g_list_next (list))
++    {
++        c2 = (Client *) list->data;
++        if ((c2 != c) && FLAG_TEST(c2->flags, CLIENT_FLAG_FULLSCREEN)
++                && c2->win_layer == WIN_LAYER_FULLSCREEN)
++        {
++            if(clientCheckSameMonitor(c, c2))
++            {
++                /* If there is one, look for its place in the list */
++                sibling = g_list_find (screen_info->windows_stack, (gconstpointer) c);
++                /* Place the lowered window just before it */
++                screen_info->windows_stack = g_list_remove (screen_info->windows_stack, (gconstpointer) c2);
++                screen_info->windows_stack = g_list_insert_before (screen_info->windows_stack, sibling, c2);
++                changed = TRUE;
++            }
++        }
++    }
++
++    if(applyStack && changed)
++    {
++        clientApplyStackList (screen_info);
++        clientSetNetClientList (c->screen_info, display_info->atoms[NET_CLIENT_LIST_STACKING], screen_info->windows_stack);
++    }
++}
+\ No newline at end of file
+diff --git a/src/stacking.h b/src/stacking.h
+index cfe4121c1..4c932419d 100644
+--- a/src/stacking.h
++++ b/src/stacking.h
+@@ -50,8 +50,6 @@ void                     clientRaise                            (Client *,
+                                                                  Window);
+ void                     clientLower                            (Client *,
+                                                                  Window);
+-gboolean                 clientAdjustFullscreenLayer            (Client *,
+-                                                                 gboolean);
+ void                     clientAddToList                        (Client *);
+ void                     clientRemoveFromList                   (Client *);
+ GList                   *clientGetStackList                     (ScreenInfo *);
+@@ -60,5 +58,7 @@ Client                  *clientGetLastRaise                     (ScreenInfo *);
+ void                     clientClearLastRaise                   (ScreenInfo *);
+ void                     clientClearDelayedRaise                (void);
+ void                     clientResetDelayedRaise                (ScreenInfo *);
++void                     clientLowerFullscreenClients          (Client *,
++                                                                gboolean);
+ 
+ #endif /* INC_STACKING_H */
+-- 
+2.27.0
+
