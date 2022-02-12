@@ -1,0 +1,130 @@
+Index: src/cycle.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/cycle.c b/src/cycle.c
+--- a/src/cycle.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
++++ b/src/cycle.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
+@@ -56,6 +56,7 @@
+     Tabwin *tabwin;
+     WireFrame *wireframe;
+     gboolean inside;
++    gboolean hold;
+ };
+ 
+ static gint
+@@ -291,7 +292,13 @@
+                  */
+                 if (event->key.keycode == cancel)
+                 {
+-                    c2 = tabwinSelectHead (passdata->tabwin);
++                    if (passdata->hold) {
++                        c2 = tabwinGetSelected (passdata->tabwin);
++                    }
++                    else
++                    {
++                        c2 = tabwinSelectHead (passdata->tabwin);
++                    }
+                     cycling = FALSE;
+                 }
+                 else if (event->key.keycode == up)
+@@ -315,7 +322,7 @@
+                     TRACE ("cycle: previous");
+                     c2 = tabwinSelectPrev(passdata->tabwin);
+                 }
+-                else if (key == KEY_CYCLE_WINDOWS)
++                else if (key == KEY_CYCLE_WINDOWS || key == KEY_CYCLE_WINDOWS_HOLD)
+                 {
+                     TRACE ("cycle: next");
+                     c2 = tabwinSelectNext(passdata->tabwin);
+@@ -325,10 +332,15 @@
+                     clientCycleUpdateWireframe (c2, passdata);
+                 }
+ 
+-                /* If last key press event had not our modifiers pressed, finish cycling */
++                /*
++                 * If last key press event had not our modifiers pressed, finish cycling
++                 * except when KEY_CYCLE_WINDOWS_HOLD was pressed
++                 */
+                 if (!(event->key.state & modifiers))
+                 {
+-                    cycling = FALSE;
++                    if (!passdata->hold) {
++                        cycling = FALSE;
++                    }
+                 }
+                 status = EVENT_FILTER_STOP;
+             }
+@@ -340,7 +352,9 @@
+                 {
+                     if (!(myScreenGetModifierPressed (screen_info) & modifiers))
+                     {
+-                        cycling = FALSE;
++                        if (!passdata->hold) {
++                            cycling = FALSE;
++                        }
+                     }
+                 }
+             }
+@@ -487,6 +501,12 @@
+         selected = g_list_last (client_list);
+         modifier = screen_info->params->keys[KEY_CYCLE_REVERSE_WINDOWS].modifier;
+     }
++    else if (key == KEY_CYCLE_WINDOWS_HOLD)
++    {
++        selected = g_list_next (client_list);
++        modifier = screen_info->params->keys[KEY_CYCLE_WINDOWS_HOLD].modifier;
++        passdata.hold = TRUE;
++    }
+     else
+     {
+         selected = g_list_next (client_list);
+Index: src/events.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/events.c b/src/events.c
+--- a/src/events.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
++++ b/src/events.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
+@@ -325,6 +325,7 @@
+                 clientResize (c, CORNER_BOTTOM_RIGHT, NULL);
+                 break;
+             case KEY_CYCLE_WINDOWS:
++            case KEY_CYCLE_WINDOWS_HOLD:
+             case KEY_CYCLE_REVERSE_WINDOWS:
+                 clientCycle (c, event);
+                 break;
+Index: src/settings.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/settings.c b/src/settings.c
+--- a/src/settings.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
++++ b/src/settings.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
+@@ -572,6 +572,7 @@
+     parseShortcut (screen_info, KEY_ADD_ADJACENT_WORKSPACE, "add_adjacent_workspace_key", shortcuts);
+     parseShortcut (screen_info, KEY_CLOSE_WINDOW, "close_window_key", shortcuts);
+     parseShortcut (screen_info, KEY_CYCLE_WINDOWS, "cycle_windows_key", shortcuts);
++    parseShortcut (screen_info, KEY_CYCLE_WINDOWS_HOLD, "cycle_windows_hold_key", shortcuts);
+     parseShortcut (screen_info, KEY_CYCLE_REVERSE_WINDOWS, "cycle_reverse_windows_key", shortcuts);
+     parseShortcut (screen_info, KEY_DEL_WORKSPACE, "del_workspace_key", shortcuts);
+     parseShortcut (screen_info, KEY_DEL_ACTIVE_WORKSPACE, "del_active_workspace_key", shortcuts);
+Index: src/settings.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/settings.h b/src/settings.h
+--- a/src/settings.h	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
++++ b/src/settings.h	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
+@@ -64,6 +64,7 @@
+     KEY_ADD_WORKSPACE,
+     KEY_CLOSE_WINDOW,
+     KEY_CYCLE_WINDOWS,
++    KEY_CYCLE_WINDOWS_HOLD,
+     KEY_CYCLE_REVERSE_WINDOWS,
+     KEY_DEL_ACTIVE_WORKSPACE,
+     KEY_DEL_WORKSPACE,
