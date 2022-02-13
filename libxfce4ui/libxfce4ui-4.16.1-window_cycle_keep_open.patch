@@ -1,0 +1,24 @@
+From 43517953810a1800d025ad989366e9bb95e41559 Mon Sep 17 00:00:00 2001
+From: andregoetz <andregoetz37@gmail.com>
+Date: Sun, 13 Feb 2022 00:14:51 +0100
+Subject: [PATCH] add cycle_keep_windows_key
+
+---
+ libxfce4kbd-private/xfce-shortcuts-xfwm4.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libxfce4kbd-private/xfce-shortcuts-xfwm4.c b/libxfce4kbd-private/xfce-shortcuts-xfwm4.c
+index 9caf627..0a2b97c 100644
+--- a/libxfce4kbd-private/xfce-shortcuts-xfwm4.c
++++ b/libxfce4kbd-private/xfce-shortcuts-xfwm4.c
+@@ -40,6 +40,7 @@ const ShortcutTemplate xfwm4_shortcut_values[] = {
+   { N_("Right"), "right_key" },
+   { N_("Cancel"), "cancel_key" },
+   { N_("Cycle windows"), "cycle_windows_key" },
++  { N_("Cycle windows (Keep open)"), "cycle_keep_windows_key" },
+   { N_("Cycle windows (Reverse)"), "cycle_reverse_windows_key" },
+   { N_("Switch window for same application"), "switch_window_key" },
+   { N_("Switch application"), "switch_application_key" },
+-- 
+2.35.1
+
