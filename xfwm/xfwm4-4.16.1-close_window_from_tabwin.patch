@@ -1,0 +1,20 @@
+Index: src/cycle.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/cycle.c b/src/cycle.c
+--- a/src/cycle.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
++++ b/src/cycle.c	(revision b16280cb909d674dd0187ed4a43c71e58380a01f)
+@@ -362,6 +362,11 @@
+                             c2 = tabwinSelectHovered (passdata->tabwin);
+                             break;
+                         }
++                        else if (event->button.button == Button2)
++                        {
++                            c2 = tabwinSelectHovered (passdata->tabwin);
++                            clientClose (c2);
++                        }
+                         else if (event->button.button == Button4)
+                         {
+                             /* Mouse wheel scroll up */
