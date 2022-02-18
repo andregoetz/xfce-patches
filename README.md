@@ -44,8 +44,8 @@ All patches are based on libxfce4ui-4.16.1
 To apply a patch type:
 ```
 git clone https://gitlab.xfce.org/xfce/libxfce4ui.git
-cd xfwm4
-git checkout xfwm4-4.16.1
+cd libxfce4ui
+git checkout libxfce4ui-4.16.1
 git apply <patch-name>.patch
 ```
 then rebuild libxfce4ui
