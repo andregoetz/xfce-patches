@@ -1,130 +1,159 @@
-Index: src/cycle.c
-IDEA additional info:
-Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
-<+>UTF-8
-===================================================================
+From 7e51f2bcbe9dc0397313d3f66349171c31a3f2b2 Mon Sep 17 00:00:00 2001
+From: andregoetz <andregoetz37@gmail.com>
+Date: Fri, 18 Feb 2022 20:38:40 +0100
+Subject: [PATCH] addition of event-key KEY_CYCLE_KEEP_WINDOWS and select key
+
+---
+ src/cycle.c    | 30 +++++++++++++++++++++++++-----
+ src/events.c   |  1 +
+ src/settings.c |  2 ++
+ src/settings.h |  2 ++
+ 4 files changed, 30 insertions(+), 5 deletions(-)
+
 diff --git a/src/cycle.c b/src/cycle.c
---- a/src/cycle.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
-+++ b/src/cycle.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
-@@ -56,6 +56,7 @@
+index 2a30647d1..87f30e345 100644
+--- a/src/cycle.c
++++ b/src/cycle.c
+@@ -56,6 +56,7 @@ struct _ClientCycleData
      Tabwin *tabwin;
      WireFrame *wireframe;
      gboolean inside;
-+    gboolean hold;
++    gboolean keepOpen;
  };
  
  static gint
-@@ -291,7 +292,13 @@
-                  */
-                 if (event->key.keycode == cancel)
-                 {
--                    c2 = tabwinSelectHead (passdata->tabwin);
-+                    if (passdata->hold) {
-+                        c2 = tabwinGetSelected (passdata->tabwin);
-+                    }
-+                    else
-+                    {
-+                        c2 = tabwinSelectHead (passdata->tabwin);
-+                    }
+@@ -249,7 +250,7 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+     Client *c, *removed;
+     Client *c2 = NULL;
+     eventFilterStatus status;
+-    KeyCode cancel, left, right, up, down;
++    KeyCode cancel, select, left, right, up, down;
+     int key, modifiers;
+     gboolean cycling;
+     GList *li;
+@@ -266,6 +267,7 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+     screen_info = c->screen_info;
+     display_info = screen_info->display_info;
+     cancel = screen_info->params->keys[KEY_CANCEL].keycode;
++    select = screen_info->params->keys[KEY_SELECT].keycode;
+     left = screen_info->params->keys[KEY_LEFT].keycode;
+     right = screen_info->params->keys[KEY_RIGHT].keycode;
+     up = screen_info->params->keys[KEY_UP].keycode;
+@@ -294,6 +296,11 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+                     c2 = tabwinSelectHead (passdata->tabwin);
                      cycling = FALSE;
                  }
++                else if (event->key.keycode == select)
++                {
++                    c2 = tabwinGetSelected (passdata->tabwin);
++                    cycling = FALSE;
++                }
                  else if (event->key.keycode == up)
-@@ -315,7 +322,7 @@
+                 {
+                     c2 = tabwinSelectDelta(passdata->tabwin, -1, 0);
+@@ -315,7 +322,7 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
                      TRACE ("cycle: previous");
                      c2 = tabwinSelectPrev(passdata->tabwin);
                  }
 -                else if (key == KEY_CYCLE_WINDOWS)
-+                else if (key == KEY_CYCLE_WINDOWS || key == KEY_CYCLE_WINDOWS_HOLD)
++                else if (key == KEY_CYCLE_WINDOWS || key == KEY_CYCLE_KEEP_WINDOWS)
                  {
                      TRACE ("cycle: next");
                      c2 = tabwinSelectNext(passdata->tabwin);
-@@ -325,10 +332,15 @@
+@@ -325,10 +332,15 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
                      clientCycleUpdateWireframe (c2, passdata);
                  }
  
 -                /* If last key press event had not our modifiers pressed, finish cycling */
 +                /*
 +                 * If last key press event had not our modifiers pressed, finish cycling
-+                 * except when KEY_CYCLE_WINDOWS_HOLD was pressed
++                 * except when KEY_CYCLE_KEEP_WINDOWS was pressed
 +                 */
                  if (!(event->key.state & modifiers))
                  {
 -                    cycling = FALSE;
-+                    if (!passdata->hold) {
++                    if (!passdata->keepOpen) {
 +                        cycling = FALSE;
 +                    }
                  }
                  status = EVENT_FILTER_STOP;
              }
-@@ -340,7 +352,9 @@
+@@ -340,7 +352,9 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
                  {
                      if (!(myScreenGetModifierPressed (screen_info) & modifiers))
                      {
 -                        cycling = FALSE;
-+                        if (!passdata->hold) {
++                        if (!passdata->keepOpen) {
 +                            cycling = FALSE;
 +                        }
                      }
                  }
              }
-@@ -487,6 +501,12 @@
+@@ -487,6 +501,12 @@ clientCycle (Client * c, XfwmEventKey *event)
          selected = g_list_last (client_list);
          modifier = screen_info->params->keys[KEY_CYCLE_REVERSE_WINDOWS].modifier;
      }
-+    else if (key == KEY_CYCLE_WINDOWS_HOLD)
++    else if (key == KEY_CYCLE_KEEP_WINDOWS)
 +    {
 +        selected = g_list_next (client_list);
-+        modifier = screen_info->params->keys[KEY_CYCLE_WINDOWS_HOLD].modifier;
-+        passdata.hold = TRUE;
++        modifier = screen_info->params->keys[KEY_CYCLE_KEEP_WINDOWS].modifier;
++        passdata.keepOpen = TRUE;
 +    }
      else
      {
          selected = g_list_next (client_list);
-Index: src/events.c
-IDEA additional info:
-Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
-<+>UTF-8
-===================================================================
 diff --git a/src/events.c b/src/events.c
---- a/src/events.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
-+++ b/src/events.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
-@@ -325,6 +325,7 @@
+index 6ace19b1c..232cf928b 100644
+--- a/src/events.c
++++ b/src/events.c
+@@ -325,6 +325,7 @@ handleKeyPress (DisplayInfo *display_info, XfwmEventKey *event)
                  clientResize (c, CORNER_BOTTOM_RIGHT, NULL);
                  break;
              case KEY_CYCLE_WINDOWS:
-+            case KEY_CYCLE_WINDOWS_HOLD:
++            case KEY_CYCLE_KEEP_WINDOWS:
              case KEY_CYCLE_REVERSE_WINDOWS:
                  clientCycle (c, event);
                  break;
-Index: src/settings.c
-IDEA additional info:
-Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
-<+>UTF-8
-===================================================================
 diff --git a/src/settings.c b/src/settings.c
---- a/src/settings.c	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
-+++ b/src/settings.c	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
-@@ -572,6 +572,7 @@
+index ce4a05e8a..afb10f531 100644
+--- a/src/settings.c
++++ b/src/settings.c
+@@ -564,6 +564,7 @@ loadKeyBindings (ScreenInfo *screen_info)
+     shortcuts = xfce_shortcuts_provider_get_shortcuts (screen_info->shortcuts_provider);
+ 
+     parseShortcut (screen_info, KEY_CANCEL, "cancel_key", shortcuts);
++    parseShortcut (screen_info, KEY_SELECT, "select_key", shortcuts);
+     parseShortcut (screen_info, KEY_DOWN, "down_key", shortcuts);
+     parseShortcut (screen_info, KEY_LEFT, "left_key", shortcuts);
+     parseShortcut (screen_info, KEY_RIGHT, "right_key", shortcuts);
+@@ -572,6 +573,7 @@ loadKeyBindings (ScreenInfo *screen_info)
      parseShortcut (screen_info, KEY_ADD_ADJACENT_WORKSPACE, "add_adjacent_workspace_key", shortcuts);
      parseShortcut (screen_info, KEY_CLOSE_WINDOW, "close_window_key", shortcuts);
      parseShortcut (screen_info, KEY_CYCLE_WINDOWS, "cycle_windows_key", shortcuts);
-+    parseShortcut (screen_info, KEY_CYCLE_WINDOWS_HOLD, "cycle_windows_hold_key", shortcuts);
++    parseShortcut (screen_info, KEY_CYCLE_KEEP_WINDOWS, "cycle_keep_windows_key", shortcuts);
      parseShortcut (screen_info, KEY_CYCLE_REVERSE_WINDOWS, "cycle_reverse_windows_key", shortcuts);
      parseShortcut (screen_info, KEY_DEL_WORKSPACE, "del_workspace_key", shortcuts);
      parseShortcut (screen_info, KEY_DEL_ACTIVE_WORKSPACE, "del_active_workspace_key", shortcuts);
-Index: src/settings.h
-IDEA additional info:
-Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
-<+>UTF-8
-===================================================================
 diff --git a/src/settings.h b/src/settings.h
---- a/src/settings.h	(revision 5f61a84ad14162917fc073b2a3b089f78419d0c0)
-+++ b/src/settings.h	(revision 4ca8a9ef6c4e8b28492394b21c679b1e4c639529)
-@@ -64,6 +64,7 @@
+index 4293dc096..a395cb265 100644
+--- a/src/settings.h
++++ b/src/settings.h
+@@ -55,6 +55,7 @@ enum
+ enum
+ {
+     KEY_CANCEL = 0,
++    KEY_SELECT,
+     KEY_DOWN,
+     KEY_LEFT,
+     KEY_RIGHT,
+@@ -64,6 +65,7 @@ enum
      KEY_ADD_WORKSPACE,
      KEY_CLOSE_WINDOW,
      KEY_CYCLE_WINDOWS,
-+    KEY_CYCLE_WINDOWS_HOLD,
++    KEY_CYCLE_KEEP_WINDOWS,
      KEY_CYCLE_REVERSE_WINDOWS,
      KEY_DEL_ACTIVE_WORKSPACE,
      KEY_DEL_WORKSPACE,
+-- 
+2.35.1
+
