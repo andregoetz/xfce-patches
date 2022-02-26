@@ -1,0 +1,69 @@
+diff --git a/src/cycle.c b/src/cycle.c
+index 2a30647d1..63bdac739 100644
+--- a/src/cycle.c
++++ b/src/cycle.c
+@@ -251,7 +251,7 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+     eventFilterStatus status;
+     KeyCode cancel, left, right, up, down;
+     int key, modifiers;
+-    gboolean cycling;
++    gboolean cycling, clicked_outside;
+     GList *li;
+
+     TRACE ("entering");
+@@ -291,7 +291,7 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+                  */
+                 if (event->key.keycode == cancel)
+                 {
+-                    c2 = tabwinSelectHead (passdata->tabwin);
++                    passdata->tabwin->selected = NULL;
+                     cycling = FALSE;
+                 }
+                 else if (event->key.keycode == up)
+@@ -351,12 +351,14 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+             {
+                 status = EVENT_FILTER_CONTINUE;
+                 cycling = FALSE;
++                clicked_outside = TRUE;
+
+                 /* only accept events for the tab windows */
+                 for (li = passdata->tabwin->tabwin_list; li != NULL; li = li->next)
+                 {
+                     if (GDK_WINDOW_XID (gtk_widget_get_window (li->data)) == event->meta.window)
+                     {
++                        clicked_outside = FALSE;
+                         if  (event->button.button == Button1)
+                         {
+                             c2 = tabwinSelectHovered (passdata->tabwin);
+@@ -378,15 +380,25 @@ clientCycleEventFilter (XfwmEvent *event, gpointer data)
+                         status = EVENT_FILTER_STOP;
+                         cycling = TRUE;
+                     }
+-                    if (c2)
+-                    {
+-                        clientCycleUpdateWireframe (c2, passdata);
+-                    }
+-                    if (!cycling)
++
++                    if (!clicked_outside)
+                     {
+-                        tabwinSelectHead (passdata->tabwin);
++                        if (c2)
++                        {
++                            clientCycleUpdateWireframe (c2, passdata);
++                        }
++                        if (!cycling)
++                        {
++                            tabwinSelectHead (passdata->tabwin);
++                        }
+                     }
+                 }
++
++                if (event->button.button == Button1 && clicked_outside)
++                {
++                    cycling = FALSE;
++                    passdata->tabwin->selected = NULL;
++                }
+             }
+             break;
+         case XFWM_EVENT_MOTION:
