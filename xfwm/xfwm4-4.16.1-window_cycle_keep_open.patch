@@ -1,6 +1,6 @@
-From 7e51f2bcbe9dc0397313d3f66349171c31a3f2b2 Mon Sep 17 00:00:00 2001
+From 1ac70faf4f91f92309ad3c78b75886cf2c132e36 Mon Sep 17 00:00:00 2001
 From: andregoetz <andregoetz37@gmail.com>
-Date: Fri, 18 Feb 2022 20:38:40 +0100
+Date: Sat, 26 Feb 2022 19:40:58 +0100
 Subject: [PATCH] addition of event-key KEY_CYCLE_KEEP_WINDOWS and select key
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH] addition of event-key KEY_CYCLE_KEEP_WINDOWS and select key
  4 files changed, 30 insertions(+), 5 deletions(-)
 
 diff --git a/src/cycle.c b/src/cycle.c
-index 2a30647d1..87f30e345 100644
+index 2a30647d1..2e69af655 100644
 --- a/src/cycle.c
 +++ b/src/cycle.c
 @@ -56,6 +56,7 @@ struct _ClientCycleData
@@ -96,8 +96,8 @@ index 2a30647d1..87f30e345 100644
 +    else if (key == KEY_CYCLE_KEEP_WINDOWS)
 +    {
 +        selected = g_list_next (client_list);
-+        modifier = screen_info->params->keys[KEY_CYCLE_KEEP_WINDOWS].modifier;
 +        passdata.keepOpen = TRUE;
++        modifier = TRUE; /* We pretend to have a modifier in order to always enter the cycle loop */
 +    }
      else
      {
